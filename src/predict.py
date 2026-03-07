@@ -30,7 +30,7 @@ def euclidean_distance(a, b):
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(
     static_image_mode=False,
-    max_num_hands=1,
+    max_num_hands=2,  # 👈 changed
     min_detection_confidence=0.7,
     min_tracking_confidence=0.7
 )
@@ -57,16 +57,20 @@ while True:
 
             if len(landmarks) == 63:
 
-                # Check custom signs first
+                # ---------------- CUSTOM SIGN MATCHING ----------------
                 matched = False
                 for sign_name, saved_landmarks in custom_signs.items():
                     dist = euclidean_distance(landmarks, saved_landmarks)
-                    if dist < 0.15:
+
+                    # DEBUG: print distance
+                    print("Distance for", sign_name, ":", dist)
+
+                    if dist < 0.90:   # ← we will tune this
                         prediction_text = f"{sign_name} (Custom)"
                         matched = True
                         break
 
-                # If no custom match → use model
+                # ---------------- AI MODEL PREDICTION ----------------
                 if not matched:
                     input_data = np.array(landmarks).reshape(1, -1)
                     prediction = model.predict(input_data, verbose=0)
@@ -106,4 +110,4 @@ while True:
         break
 
 cap.release()
-cv2.destroyAllWindows()
+cv2.destroyAllWindows() 
