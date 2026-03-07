@@ -17,6 +17,16 @@ with open("models/label_map.json", "r") as f:
 # Reverse mapping
 reverse_label_map = {v: k for k, v in label_map.items()}
 
+# Load custom signs
+try:
+    with open("models/custom_signs.json", "r") as f:
+        custom_signs = json.load(f)
+except:
+    custom_signs = {}
+
+def euclidean_distance(a, b):
+    return np.linalg.norm(np.array(a) - np.array(b))
+
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(
     static_image_mode=False,
@@ -46,24 +56,36 @@ while True:
                 landmarks.extend([lm.x, lm.y, lm.z])
 
             if len(landmarks) == 63:
-                input_data = np.array(landmarks).reshape(1, -1)
-                prediction = model.predict(input_data, verbose=0)
 
-                class_index = np.argmax(prediction)
-                confidence = np.max(prediction)
+                # Check custom signs first
+                matched = False
+                for sign_name, saved_landmarks in custom_signs.items():
+                    dist = euclidean_distance(landmarks, saved_landmarks)
+                    if dist < 0.15:
+                        prediction_text = f"{sign_name} (Custom)"
+                        matched = True
+                        break
 
-                if confidence > 0.80:
-                    predicted_label = reverse_label_map[class_index]
-                    prediction_queue.append(predicted_label)
+                # If no custom match → use model
+                if not matched:
+                    input_data = np.array(landmarks).reshape(1, -1)
+                    prediction = model.predict(input_data, verbose=0)
 
-                    final_prediction = max(
-                        set(prediction_queue),
-                        key=prediction_queue.count
-                    )
+                    class_index = np.argmax(prediction)
+                    confidence = np.max(prediction)
 
-                    prediction_text = f"{final_prediction} ({confidence:.2f})"
-                else:
-                    prediction_text = ""
+                    if confidence > 0.80:
+                        predicted_label = reverse_label_map[class_index]
+                        prediction_queue.append(predicted_label)
+
+                        final_prediction = max(
+                            set(prediction_queue),
+                            key=prediction_queue.count
+                        )
+
+                        prediction_text = f"{final_prediction} ({confidence:.2f})"
+                    else:
+                        prediction_text = ""
 
             mp_draw.draw_landmarks(
                 frame,
