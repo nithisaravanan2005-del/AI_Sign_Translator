@@ -29,7 +29,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 # Build model
 model = models.Sequential([
-    layers.Dense(128, activation='relu', input_shape=(63,)),
+    layers.Dense(128, activation='relu', input_shape=(126,)),
     layers.Dense(64, activation='relu'),
     layers.Dense(len(np.unique(y)), activation='softmax')
 ])

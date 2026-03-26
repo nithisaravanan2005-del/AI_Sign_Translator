@@ -8,7 +8,7 @@ SIGN_NAME = input("Enter custom sign name: ")
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(
     static_image_mode=False,
-    max_num_hands=1,
+    max_num_hands=2,
     min_detection_confidence=0.7,
     min_tracking_confidence=0.7
 )
@@ -77,3 +77,5 @@ with open("models/custom_signs.json", "w") as f:
     json.dump(custom_signs, f, indent=4)
 
 print(f"Custom sign '{SIGN_NAME}' saved successfully.")
+
+print(f"Custom sign '{SIGN_NAME}' saved successfully with {len(samples)} samples.")

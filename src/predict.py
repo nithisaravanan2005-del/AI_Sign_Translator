@@ -3,21 +3,29 @@ import mediapipe as mp
 import numpy as np
 import tensorflow as tf
 import json
-from collections import deque
+from collections import deque, Counter
+import pyttsx3
+import threading
+import time
 
-prediction_queue = deque(maxlen=10)
+# ---------------- VOICE ----------------
+engine = pyttsx3.init()
+last_spoken = ""
+last_spoken_time = 0
 
-# Load trained model
+def speak(text):
+    engine.say(text)
+    engine.runAndWait()
+
+# ---------------- MODEL ----------------
 model = tf.keras.models.load_model("models/sign_model.h5")
 
-# Load label map
 with open("models/label_map.json", "r") as f:
     label_map = json.load(f)
 
-# Reverse mapping
 reverse_label_map = {v: k for k, v in label_map.items()}
 
-# Load custom signs
+# ---------------- CUSTOM ----------------
 try:
     with open("models/custom_signs.json", "r") as f:
         custom_signs = json.load(f)
@@ -27,17 +35,18 @@ except:
 def euclidean_distance(a, b):
     return np.linalg.norm(np.array(a) - np.array(b))
 
+# ---------------- MEDIAPIPE ----------------
 mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(
-    static_image_mode=False,
-    max_num_hands=2,  # 👈 changed
-    min_detection_confidence=0.7,
-    min_tracking_confidence=0.7
-)
+hands = mp_hands.Hands(max_num_hands=2)
 
 mp_draw = mp.solutions.drawing_utils
 cap = cv2.VideoCapture(0)
 
+# ---------------- STABILITY ----------------
+prediction_buffer = deque(maxlen=15)
+stable_prediction = ""
+
+# ---------------- MAIN LOOP ----------------
 while True:
     success, frame = cap.read()
     if not success:
@@ -46,63 +55,73 @@ while True:
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = hands.process(rgb)
 
-    prediction_text = ""
+    current_prediction = ""
 
     if results.multi_hand_landmarks:
-        for hand_landmarks in results.multi_hand_landmarks:
 
-            landmarks = []
+        landmarks = []
+
+        for hand_landmarks in results.multi_hand_landmarks:
             for lm in hand_landmarks.landmark:
                 landmarks.extend([lm.x, lm.y, lm.z])
 
-            if len(landmarks) == 63:
+        if len(landmarks) < 126:
+            landmarks.extend([0] * (126 - len(landmarks)))
 
-                # ---------------- CUSTOM SIGN MATCHING ----------------
-                matched = False
-                for sign_name, saved_landmarks in custom_signs.items():
-                    dist = euclidean_distance(landmarks, saved_landmarks)
+        # -------- CUSTOM MATCH --------
+        matched = False
+        for sign_name, saved_landmarks in custom_signs.items():
+            dist = euclidean_distance(landmarks, saved_landmarks)
 
-                    # DEBUG: print distance
-                    print("Distance for", sign_name, ":", dist)
+            if dist < 0.85:
+                current_prediction = sign_name
+                matched = True
+                break
 
-                    if dist < 0.90:   # ← we will tune this
-                        prediction_text = f"{sign_name} (Custom)"
-                        matched = True
-                        break
+        # -------- AI MODEL --------
+        if not matched:
+            input_data = np.array(landmarks).reshape(1, -1)
+            prediction = model.predict(input_data, verbose=0)
 
-                # ---------------- AI MODEL PREDICTION ----------------
-                if not matched:
-                    input_data = np.array(landmarks).reshape(1, -1)
-                    prediction = model.predict(input_data, verbose=0)
+            class_index = np.argmax(prediction)
+            confidence = np.max(prediction)
 
-                    class_index = np.argmax(prediction)
-                    confidence = np.max(prediction)
+            if confidence > 0.75:
+                current_prediction = reverse_label_map[class_index]
 
-                    if confidence > 0.80:
-                        predicted_label = reverse_label_map[class_index]
-                        prediction_queue.append(predicted_label)
+    # -------- SMOOTHING --------
+    if current_prediction != "":
+        prediction_buffer.append(current_prediction)
 
-                        final_prediction = max(
-                            set(prediction_queue),
-                            key=prediction_queue.count
-                        )
+    if len(prediction_buffer) > 5:
+        most_common = Counter(prediction_buffer).most_common(1)[0][0]
 
-                        prediction_text = f"{final_prediction} ({confidence:.2f})"
-                    else:
-                        prediction_text = ""
+        if most_common != stable_prediction:
+            stable_prediction = most_common
 
-            mp_draw.draw_landmarks(
-                frame,
-                hand_landmarks,
-                mp_hands.HAND_CONNECTIONS
-            )
+    display_text = stable_prediction
 
-    cv2.putText(frame, prediction_text,
+    # -------- DRAW --------
+    if results.multi_hand_landmarks:
+        for hand_landmarks in results.multi_hand_landmarks:
+            mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+
+    # -------- VOICE --------
+    current_time = time.time()
+
+    if display_text != "":
+        if display_text != last_spoken or (current_time - last_spoken_time > 2):
+            threading.Thread(target=speak, args=(display_text,)).start()
+            last_spoken = display_text
+            last_spoken_time = current_time
+
+    # -------- DISPLAY --------
+    cv2.putText(frame, display_text,
                 (10, 40),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                1,
+                1.3,
                 (0, 255, 0),
-                2)
+                3)
 
     cv2.imshow("AI Sign Translator", frame)
 
@@ -110,4 +129,4 @@ while True:
         break
 
 cap.release()
-cv2.destroyAllWindows() 
+cv2.destroyAllWindows()

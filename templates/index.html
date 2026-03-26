@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Sign Translator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<!-- COUNTDOWN -->
+<div id="countdown" class="countdown"></div>
+
+<!-- POPUP -->
+<div id="popup" class="popup">Training Completed ✅</div>
+
+<div class="container">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <h2>🤟 Sign AI</h2>
+
+        <button onclick="start()">▶ Start</button>
+        <button onclick="stop()">⏹ Stop</button>
+
+        <input id="name" placeholder="Enter sign name">
+        <button onclick="train()">➕ Train Sign</button>
+
+        <h3>Custom Signs</h3>
+        <ul id="customList"></ul>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+
+        <h1>AI Sign Translator</h1>
+
+        <div class="video-box">
+            <img src="{{ url_for('video') }}">
+        </div>
+
+        <div class="live-box">
+            <h3>Live Detection</h3>
+            <p id="text">---</p>
+        </div>
+
+        <!-- 🔥 PARAGRAPH -->
+        <div class="para-box">
+            <h3>Sentence</h3>
+            <p id="paragraph"></p>
+
+<button onclick="clearText()">Clear</button>
+<button onclick="copyText()">Copy</button>
+        </div>
+
+    </div>
+
+</div>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</body>
+</html>

@@ -12,7 +12,7 @@ os.makedirs(DATA_PATH, exist_ok=True)
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(
     static_image_mode=False,
-    max_num_hands=1,
+    max_num_hands=2,  # Two-hand detection
     min_detection_confidence=0.7,
     min_tracking_confidence=0.7
 )
@@ -31,20 +31,28 @@ while True:
     results = hands.process(rgb)
 
     if results.multi_hand_landmarks:
-        for hand_landmarks in results.multi_hand_landmarks:
 
-            landmarks = []
+        landmarks = []
+
+        # Collect landmarks from both hands
+        for hand_landmarks in results.multi_hand_landmarks:
             for lm in hand_landmarks.landmark:
                 landmarks.extend([lm.x, lm.y, lm.z])
 
-            # Save CSV file
-            file_path = os.path.join(DATA_PATH, f"{sample_count}.csv")
-            with open(file_path, mode='w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(landmarks)
+        # If only one hand detected, pad zeros
+        if len(landmarks) < 126:
+            landmarks.extend([0] * (126 - len(landmarks)))
 
-            sample_count += 1
+        # Save CSV file
+        file_path = os.path.join(DATA_PATH, f"{sample_count}.csv")
+        with open(file_path, mode='w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(landmarks)
 
+        sample_count += 1
+
+        # Draw both hands
+        for hand_landmarks in results.multi_hand_landmarks:
             mp_draw.draw_landmarks(
                 frame,
                 hand_landmarks,
@@ -58,7 +66,7 @@ while True:
                 (0, 255, 0),
                 2)
 
-    cv2.imshow("Data Collection", frame)
+    cv2.imshow("2-Hand Data Collection", frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
